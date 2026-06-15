@@ -1,0 +1,173 @@
+/* Configurações Globais de Reset */
+body {
+    background-color: #121212;
+    color: #ffffff;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+/* Container Principal do Painel */
+.dashboard-container {
+    background-color: #181818;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 520px;
+    padding: 40px;
+    box-sizing: border-box;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    border: 1px solid #282828;
+}
+
+/* Cabeçalho */
+.dashboard-header {
+    text-align: center;
+    margin-bottom: 35px;
+}
+
+.logo-area {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-icon {
+    color: #1DB954;
+    font-size: 32px;
+}
+
+.dashboard-header h1 {
+    font-size: 32px;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+.subtitle {
+    color: #b3b3b3;
+    font-size: 14px;
+    margin-top: 8px;
+    margin-bottom: 0;
+}
+
+/* Seções Internas do Formulário */
+.form-section {
+    background-color: #202020;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    border: 1px solid #2a2a2a;
+}
+
+.form-section h3 {
+    margin-top: 0;
+    margin-bottom: 18px;
+    font-size: 16px;
+    color: #1DB954;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Grupos de Inputs */
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group:last-child {
+    margin-bottom: 0;
+}
+
+label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #aeaeae;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+/* Inputs com Ícones Embutidos */
+.input-with-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-with-icon i {
+    position: absolute;
+    left: 14px;
+    color: #727272;
+    font-size: 16px;
+    transition: color 0.2s;
+}
+
+input[type="text"], 
+input[type="number"] {
+    width: 100%;
+    padding: 14px 14px 14px 42px;
+    background-color: #2a2a2a;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 14px;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+/* Efeitos Elétricos ao Clicar nos Inputs */
+input:focus {
+    outline: none;
+    background-color: #333333;
+    border-color: #1DB954;
+    box-shadow: 0 0 8px rgba(29, 185, 84, 0.2);
+}
+
+input:focus + i, 
+.input-with-icon:focus-within i {
+    color: #1DB954;
+}
+
+/* Textos de Ajuda Inferiores */
+.help-text {
+    display: block;
+    font-size: 11px;
+    color: #727272;
+    margin-top: 6px;
+}
+
+/* Botão Principal */
+.btn-forge {
+    width: 100%;
+    background-color: #1DB954;
+    color: #ffffff;
+    border: none;
+    padding: 16px;
+    border-radius: 30px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(29, 185, 84, 0.3);
+    transition: all 0.2s ease;
+}
+
+.btn-forge:hover {
+    background-color: #1ed760;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(29, 185, 84, 0.4);
+}
+
+.btn-forge:active {
+    transform: translateY(0);
+}

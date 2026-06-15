@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz de Fã — Descubra seu Perfil</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    background: #121212;
+    color: #fff;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+  }
+  .card {
+    background: #181818;
+    border-radius: 16px;
+    padding: 40px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+    text-align: center;
+  }
+  h1 { color: #1DB954; margin-top: 0; font-size: 28px; }
+  p.subtitle { color: #b3b3b3; margin-bottom: 30px; }
+  input[type=text] {
+    width: 100%;
+    padding: 14px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #222;
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 16px;
+  }
+  button {
+    background: #1DB954;
+    color: #fff;
+    border: none;
+    padding: 14px 30px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    width: 100%;
+  }
+  button:hover { background: #1ed760; }
+  button:disabled { background: #555; cursor: not-allowed; }
+  .pergunta { text-align: left; margin-bottom: 24px; }
+  .pergunta h3 { margin-bottom: 12px; font-size: 17px; }
+  .opcao {
+    display: block;
+    background: #222;
+    border: 2px solid #333;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .opcao:hover { border-color: #1DB954; }
+  .opcao.selecionada { border-color: #1DB954; background: #1f3328; }
+  .opcao input { display: none; }
+  .escondido { display: none; }
+  .erro { color: #ff5c5c; margin-top: 10px; }
+  .progresso { color: #888; font-size: 13px; margin-bottom: 10px; }
+  .faixa-item { text-align: left; font-size: 14px; color: #ccc; padding: 4px 0; border-bottom: 1px solid #2a2a2a; }
+</style>
+</head>
+<body>
+
+<div class="card">
+
+  <!-- TELA 1: ESCOLHER ARTISTA -->
+  <div id="tela-inicio">
+    <h1>🎧 Quiz de Fã</h1>
+    <p class="subtitle">Digite um artista e descubra seu perfil de fã — com uma playlist feita só pra você.</p>
+    <input type="text" id="inputArtista" placeholder="Ex: Marina, Lady Gaga, Twice...">
+    <button onclick="iniciarQuiz()">Começar Quiz</button>
+    <p class="erro escondido" id="erroInicio"></p>
+  </div>
+
+  <!-- TELA 2: PERGUNTAS -->
+  <div id="tela-quiz" class="escondido">
+    <h1 id="tituloArtista"></h1>
+    <p class="progresso" id="progresso"></p>
+    <div id="perguntaAtual"></div>
+    <button id="btnProximo" onclick="proximaPergunta()" disabled>Próxima</button>
+  </div>
+
+  <!-- TELA 3: RESULTADO -->
+  <div id="tela-resultado" class="escondido">
+    <h1 id="tituloResultado"></h1>
+    <p class="subtitle" id="descricaoResultado"></p>
+    <div id="listaFaixas" style="max-height: 200px; overflow-y: auto; margin-bottom: 20px;"></div>
+    <button onclick="criarPlaylist()">🎵 Criar essa playlist no meu Spotify</button>
+  </div>
+
+</div>
+
+<script>
+let perguntas = [];
+let respostas = {};
+let indiceAtual = 0;
+let nomeArtistaAtual = '';
+
+async function iniciarQuiz() {
+  const artista = document.getElementById('inputArtista').value.trim();
+  const erroEl = document.getElementById('erroInicio');
+  erroEl.classList.add('escondido');
+
+  if (!artista) {
+    erroEl.textContent = 'Digite o nome de um artista.';
+    erroEl.classList.remove('escondido');
+    return;
+  }
+
+  try {
+    const resp = await fetch('/api/quiz/gerar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ artista })
+    });
+    const dados = await resp.json();
+
+    if (!resp.ok) {
+      erroEl.textContent = dados.erro || 'Erro ao gerar quiz.';
+      erroEl.classList.remove('escondido');
+      return;
+    }
+
+    perguntas = dados.perguntas;
+    respostas = {};
+    indiceAtual = 0;
+    nomeArtistaAtual = dados.artista.nome;
+
+    document.getElementById('tituloArtista').textContent = `Quiz: ${nomeArtistaAtual}`;
+    document.getElementById('tela-inicio').classList.add('escondido');
+    document.getElementById('tela-quiz').classList.remove('escondido');
+    mostrarPergunta();
+  } catch (e) {
+    erroEl.textContent = 'Erro de conexão com o servidor.';
+    erroEl.classList.remove('escondido');
+  }
+}
+
+function mostrarPergunta() {
+  const pergunta = perguntas[indiceAtual];
+  document.getElementById('progresso').textContent = `Pergunta ${indiceAtual + 1} de ${perguntas.length}`;
+
+  const container = document.getElementById('perguntaAtual');
+  container.innerHTML = `
+    <div class="pergunta">
+      <h3>${pergunta.texto}</h3>
+      ${pergunta.opcoes.map((opcao, i) => `
+        <label class="opcao" data-indice="${i}" onclick="selecionarOpcao(${i})">
+          ${opcao}
+        </label>
+      `).join('')}
+    </div>
+  `;
+
+  document.getElementById('btnProximo').disabled = true;
+  document.getElementById('btnProximo').textContent =
+    indiceAtual === perguntas.length - 1 ? 'Ver resultado' : 'Próxima';
+}
+
+function selecionarOpcao(indice) {
+  respostas[perguntas[indiceAtual].id] = indice;
+  document.querySelectorAll('.opcao').forEach(el => el.classList.remove('selecionada'));
+  document.querySelector(`.opcao[data-indice="${indice}"]`).classList.add('selecionada');
+  document.getElementById('btnProximo').disabled = false;
+}
+
+async function proximaPergunta() {
+  if (indiceAtual < perguntas.length - 1) {
+    indiceAtual++;
+    mostrarPergunta();
+  } else {
+    await finalizarQuiz();
+  }
+}
+
+async function finalizarQuiz() {
+  const resp = await fetch('/api/quiz/resultado', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ respostas })
+  });
+  const resultado = await resp.json();
+
+  document.getElementById('tituloResultado').textContent = resultado.titulo;
+  document.getElementById('descricaoResultado').textContent = resultado.descricao;
+  document.getElementById('listaFaixas').innerHTML = resultado.faixas
+    .map(f => `<div class="faixa-item">🎵 ${f.nome} <span style="color:#666;"> — ${f.album || ''}</span></div>`)
+    .join('');
+
+  document.getElementById('tela-quiz').classList.add('escondido');
+  document.getElementById('tela-resultado').classList.remove('escondido');
+}
+
+function criarPlaylist() {
+  window.location.href = '/quiz/criar-playlist';
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StreamForge - Dashboard de Playlists</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <div class="logo-area">
+                <i class="fa-solid fa-fire-lines logo-icon"></i>
+                <h1>StreamForge</h1>
+            </div>
+            <p class="subtitle">Molde suas estratégias de reprodução anti-spam</p>
+        </header>
+
+        <form class="forge-form" action="/gerar-playlist" method="GET">
+            
+            <div class="form-section">
+                <h3><i class="fa-solid fa-bullseye"></i> Alvo Principal</h3>
+                
+                <div class="input-group">
+                    <label for="musicaFoco">Música Foco</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-music"></i>
+                        <input type="text" id="musicaFoco" name="musicaFocoNome" placeholder="Ex: Judas" required>
+                    </div>
+                    <span class="help-text">A faixa que receberá o foco dos replays dinâmicos.</span>
+                </div>
+
+                <div class="input-group">
+                    <label for="totalStreams">Metas de Repetição (Streams)</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-rotate"></i>
+                        <input type="number" id="totalStreams" name="totalStreams" value="10" min="1" required>
+                    </div>
+                    <span class="help-text">O motor vai calcular o intercalamento com base neste número.</span>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3><i class="fa-solid fa-sliders"></i> Regras do Algoritmo</h3>
+                
+                <div class="input-group">
+                    <label for="permitidos">Artistas Permitidos (Intervalo)</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-user-check"></i>
+                        <input type="text" id="permitidos" name="artistasPermitidos" placeholder="Ex: Lady Gaga, Arca">
+                    </div>
+                    <span class="help-text">Separados por vírgula. Preferência de faixas para os intervalos.</span>
+                </div>
+
+                <div class="input-group">
+                    <label for="banidos">Blacklist de Artistas (Banidos)</label>
+                    <div class="input-with-icon">
+                        <i class="fa-solid fa-user-slash"></i>
+                        <input type="text" id="banidos" name="artistasBanidos" placeholder="Ex: Madonna, Maroon 5">
+                    </div>
+                    <span class="help-text">Qualquer artista listado aqui será completamente limpo do mapa.</span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-forge">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Forjar Playlist
+            </button>
+        </form>
+    </div>
+
+</body>
+</html>
