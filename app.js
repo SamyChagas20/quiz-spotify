@@ -1,6 +1,4 @@
-if (process.env.NODE_ENV !== 'production') {
-  require('dotenv').config();
-}
+
 console.log('[DEBUG] REDIRECT URI em uso:', process.env.SPOTIFY_REDIRECT_URI);
 const express = require('express');
 const session = require('express-session');
