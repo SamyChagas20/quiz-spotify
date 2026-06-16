@@ -1,4 +1,5 @@
 require('dotenv').config();
+console.log('[DEBUG] REDIRECT URI em uso:', process.env.SPOTIFY_REDIRECT_URI);
 const express = require('express');
 const session = require('express-session');
 const SpotifyWebApi = require('spotify-web-api-node');
