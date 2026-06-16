@@ -196,8 +196,12 @@ async function gerarPerguntas(spotifyApiApp, dados) {
   }
 
   // 2. Álbum de uma faixa popular
+  const hitsDeAlbuns = hits.filter(t => 
+    t.album?.album_type === 'album'
+  );
+
   if (hits.length >= 1 && albunsEstudio.length >= 3) {
-    const faixaAlvo = hits[0];
+    const faixaAlvo = hitsDeAlbuns[0];
     const albumCorreto = faixaAlvo.album.name;
     const outrosAlbuns = albunsEstudio.map(a => a.name).filter(n => n !== albumCorreto);
     const distratores = embaralhar([...new Set(outrosAlbuns)]).slice(0, 3);
