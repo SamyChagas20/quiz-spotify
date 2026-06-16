@@ -1,4 +1,4 @@
-if (!process.env.SPOTIFY_CLIENT_ID) {
+if (process.env.NODE_ENV !== 'production') {
   require('dotenv').config();
 }
 console.log('[DEBUG] REDIRECT URI em uso:', process.env.SPOTIFY_REDIRECT_URI);
