@@ -99,12 +99,13 @@ async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
   for (const album of albunsParaFaixas) {
     const faixasResp = await spotifyApiApp.getAlbumTracks(album.id, { limit: 50 });
     const faixas = faixasResp.body.items
-      .filter(t => !idsHits.has(t.id))
-      .map(t => ({
-        ...t,
-        albumNome: album.name,
-        albumAno: parseInt(album.release_date.substring(0, 4)) || null
-      }));
+    .filter(t => !idsHits.has(t.id))
+    .filter(t => t.artists.some(a => a.id === artista.id)) // só faixas em que a artista realmente participa
+    .map(t => ({
+      ...t,
+      albumNome: album.name,
+      albumAno: parseInt(album.release_date.substring(0, 4)) || null
+    }));
     deepCuts.push(...faixas);
   }
 
@@ -120,10 +121,56 @@ async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
   return { artista, hits, albuns: albunsUnicos, albunsEstudio, deepCuts, anoMediano };
 }
 
+const ARTISTAS_DISTRATORES = [
+  'Imagine Dragons', 'Dua Lipa', 'Bad Bunny', 'Billie Eilish',
+  'Coldplay', 'Ariana Grande', 'Foo Fighters', 'Anitta',
+  'The Weeknd', 'Olivia Rodrigo', 'Bruno Mars', 'Adele',
+  'Arca', 'Sd Laika'
+];
+
+async function gerarPerguntaDiscografia(spotifyApiApp, dados) {
+  const { artista, hits, deepCuts } = dados;
+  const poolFaixasArtista = [...hits, ...deepCuts];
+  if (poolFaixasArtista.length === 0) return null;
+
+  const faixaCorreta = embaralhar(poolFaixasArtista)[0];
+
+  const distratoresPossiveis = ARTISTAS_DISTRATORES.filter(
+    nome => nome.toLowerCase() !== artista.name.toLowerCase()
+  );
+  const artistasEscolhidos = embaralhar(distratoresPossiveis);
+
+  const nomesDistratores = [];
+  for (const nomeDistrator of artistasEscolhidos) {
+    if (nomesDistratores.length >= 3) break;
+    try {
+      const busca = await spotifyApiApp.searchTracks(`artist:${nomeDistrator}`, { limit: 5 });
+      const faixas = busca.body.tracks.items;
+      if (faixas.length > 0) {
+        nomesDistratores.push(embaralhar(faixas)[0].name);
+      }
+    } catch (e) {
+      // ignora falha individual e segue pro próximo distrator
+    }
+  }
+
+  if (nomesDistratores.length < 2) return null;
+
+  const opcoes = embaralhar([faixaCorreta.name, ...nomesDistratores.slice(0, 3)]);
+
+  return {
+    id: 'q_discografia',
+    tipo: 'conhecimento',
+    texto: `Qual dessas músicas faz parte da discografia de ${artista.name}?`,
+    opcoes,
+    respostaCorreta: opcoes.indexOf(faixaCorreta.name)
+  };
+}
+
 /**
  * Gera o conjunto de perguntas: 3 de conhecimento (com gabarito) + 3 de gosto.
  */
-function gerarPerguntas(dados) {
+async function gerarPerguntas(spotifyApiApp, dados) {
   const { artista, hits, albunsEstudio } = dados;
   const conhecimento = [];
   const gosto = [];
@@ -181,6 +228,60 @@ function gerarPerguntas(dados) {
     });
   }
 
+  const perguntaDiscografia = await gerarPerguntaDiscografia(spotifyApiApp, dados);
+  if (perguntaDiscografia) conhecimento.push(perguntaDiscografia);
+
+  if (artista.genres && artista.genres.length > 0) {
+    const generosArtista = artista.genres.slice(0, 2);
+    const generosGerais = ['pop', 'rock', 'hip-hop', 'eletrônica', 'r&b', 'indie', 'k-pop', 'mpb', 'sertanejo', 'funk'];
+    const opcoesGenero = [...new Set([...generosArtista, ...embaralhar(generosGerais)])].slice(0, 4);
+
+    gosto.push({
+      id: 'q_genero',
+      tipo: 'gosto',
+      texto: 'Qual desses gêneros mais te agrada?',
+      opcoes: opcoesGenero,
+      valor: opcoesGenero // o valor é o próprio nome do gênero
+    });
+  }
+
+  // NOVA: personalidade
+  gosto.push({
+    id: 'q_personalidade',
+    tipo: 'gosto',
+    texto: 'Você é uma pessoa...',
+    opcoes: ['Extrovertida', 'Introvertida', 'Tímida', 'Anti-social (no bom sentido!)'],
+    valor: ['extrovertida', 'introvertida', 'timida', 'antisocial']
+  });
+
+  // NOVA: tempo de fã
+  gosto.push({
+    id: 'q_tempo_fa',
+    tipo: 'gosto',
+    texto: `Há quanto tempo você acompanha ${artista.name}?`,
+    opcoes: [
+      'Desde o debut e nunca mais larguei!',
+      'Durante o auge da carreira e continuei acompanhando',
+      'Acompanhava mais antes, mas nem tanto hoje em dia',
+      'Conheci recentemente, mas já sou fã!'
+    ],
+    valor: ['debut', 'auge', 'menos_hoje', 'recente']
+  });
+
+  // NOVA: ecletismo
+  gosto.push({
+    id: 'q_ecletico',
+    tipo: 'gosto',
+    texto: 'Você se considera eclético(a) musicalmente?',
+    opcoes: [
+      'Nem um pouco, só ouço o mesmo gênero',
+      'Gosto de sair da minha zona de conforto',
+      'Abro minha mente para novas experiências, mesmo não gostando',
+      'Qualquer gênero me agrada, eu gosto de tudo'
+    ],
+    valor: ['fechado', 'zona_conforto', 'mente_aberta', 'qualquer_genero']
+  });
+
   // --- Perguntas de gosto (fixas, mas personalizadas com o nome do artista) ---
 
   gosto.push({
@@ -228,7 +329,7 @@ function gerarPerguntas(dados) {
 function gerarResultado(dados, perguntas, respostas) {
   const { artista, hits, deepCuts, anoMediano } = dados;
 
-  // --- Pontuação de conhecimento ---
+  // --- Conhecimento (igual antes) ---
   let acertos = 0;
   let totalConhecimento = 0;
   for (const pergunta of perguntas) {
@@ -243,29 +344,44 @@ function gerarResultado(dados, perguntas, respostas) {
   else if (acertos >= Math.ceil(totalConhecimento / 2)) nivelFa = 'Dedicado';
   else nivelFa = 'Iniciante';
 
-  // --- Eixos de gosto ---
   const getValor = (id) => {
     const pergunta = perguntas.find(p => p.id === id);
     const indice = respostas[id];
-    return pergunta?.valor?.[indice] || 'misto';
+    return pergunta?.valor?.[indice];
   };
 
-  const respEra = getValor('q_era');
-  const respPop = getValor('q_popularidade');
-  const respVibe = getValor('q_vibe');
+  const respEra = getValor('q_era') || 'misto';
+  const respPop = getValor('q_popularidade') || 'misto';
+  const respVibe = getValor('q_vibe') || 'casual';
+  const respPersonalidade = getValor('q_personalidade');
+  const respTempoFa = getValor('q_tempo_fa');
+  const respEcletico = getValor('q_ecletico');
+  const respGenero = getValor('q_genero');
 
+  // --- Combina q_era + q_tempo_fa num score de "época" ---
+  let eraScore = 0;
+  if (respEra === 'classico') eraScore += 1;
+  if (respEra === 'recente') eraScore -= 1;
+  if (respTempoFa === 'debut') eraScore += 1;
+  if (respTempoFa === 'auge') eraScore += 0.5;
+  if (respTempoFa === 'menos_hoje') eraScore += 0.5;
+  if (respTempoFa === 'recente') eraScore -= 1;
+
+  const eraFinal = eraScore > 0 ? 'classico' : eraScore < 0 ? 'recente' : 'misto';
+
+  // --- Rótulos ---
   const rotulosEra = { classico: 'Clássico', recente: 'Atual', misto: 'Eclético' };
   const rotulosPop = { hits: 'dos Hits', raridades: 'das Raridades', misto: 'do Equilíbrio' };
   const rotulosVibe = { energia: '🔥', introspectivo: '🌙', casual: '☀️' };
 
-  const tituloPerfil = `${rotulosVibe[respVibe]} Fã ${nivelFa} ${rotulosEra[respEra]} ${rotulosPop[respPop]}`;
+  const tituloPerfil = `${rotulosVibe[respVibe]} Fã ${nivelFa} ${rotulosEra[eraFinal]} ${rotulosPop[respPop]}`;
 
-  // --- Montagem da playlist ---
+  // --- Montagem da playlist (era + popularidade, igual antes, usando eraFinal) ---
   const filtrarPorEra = (lista) => {
-    if (respEra === 'misto') return lista;
+    if (eraFinal === 'misto') return lista;
     return lista.filter(t => {
       const ano = t.albumAno || parseInt((t.album?.release_date || '').substring(0, 4)) || anoMediano;
-      return respEra === 'classico' ? ano <= anoMediano : ano > anoMediano;
+      return eraFinal === 'classico' ? ano <= anoMediano : ano > anoMediano;
     });
   };
 
@@ -285,21 +401,40 @@ function gerarResultado(dados, perguntas, respostas) {
   if (candidatos.length < 8) candidatos = candidatos.concat(filtrarPorEra(poolSecundario));
   if (candidatos.length < 8) candidatos = candidatos.concat(poolPrincipal, poolSecundario);
 
-  // Fãs mais conhecedores ganham faixas extras "raras" na mistura
-  const bonusRaridade = nivelFa === 'Hardcore' ? 4 : nivelFa === 'Dedicado' ? 2 : 0;
+  // --- Bônus de raridade: conhecimento + ecletismo ---
+  const bonusConhecimento = nivelFa === 'Hardcore' ? 4 : nivelFa === 'Dedicado' ? 2 : 0;
+  const bonusEcletismo = { fechado: 0, zona_conforto: 1, mente_aberta: 2, qualquer_genero: 3 }[respEcletico] || 0;
+  const bonusRaridade = bonusConhecimento + bonusEcletismo;
+
   if (bonusRaridade > 0) {
     candidatos = candidatos.concat(escolherDistintos(deepCuts, bonusRaridade, candidatos));
   }
 
   candidatos = candidatos.filter((t, i, self) => i === self.findIndex(x => x.id === t.id));
-  candidatos = embaralhar(candidatos).slice(0, 15);
+  candidatos = embaralhar(candidatos);
+
+  // --- Ordenação pela personalidade: extrovertida = hits na frente, tímida/introvertida = raridades na frente ---
+  if (respPersonalidade === 'extrovertida') {
+    candidatos.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  } else if (respPersonalidade === 'introvertida' || respPersonalidade === 'timida') {
+    candidatos.sort((a, b) => (a.popularity || 0) - (b.popularity || 0));
+  }
+
+  const faixasFinal = candidatos.slice(0, 15);
+
+  const descricaoGenero = respGenero ? ` Combina com seu gosto por ${respGenero}.` : '';
 
   return {
     titulo: tituloPerfil,
-    descricao: `Gerado pelo Quiz de ${artista.name} • Nível ${nivelFa} (${acertos}/${totalConhecimento} no conhecimento)`,
+    descricao: `Gerado pelo Quiz de ${artista.name} • Nível ${nivelFa} (${acertos}/${totalConhecimento} no conhecimento).${descricaoGenero}`,
     nomePlaylist: `${tituloPerfil} — ${artista.name}`,
-    uris: candidatos.map(t => t.uri),
-    faixas: candidatos.map(t => ({ nome: t.name, album: t.albumNome || t.album?.name }))
+    uris: faixasFinal.map(t => t.uri),
+    faixas: candidatos.map(t => ({
+      nome: t.name,
+      album: t.albumNome || t.album?.name,
+      id: t.id,
+      spotifyUrl: t.external_urls?.spotify || `https://open.spotify.com/track/${t.id}`
+    }))
   };
 }
 

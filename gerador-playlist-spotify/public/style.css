@@ -171,3 +171,18 @@ input:focus + i,
 .btn-forge:active {
     transform: translateY(0);
 }
+
+.faixa-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.link-faixa {
+  color: #1DB954;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+  font-weight: bold;
+}
+.link-faixa:hover { text-decoration: underline; }

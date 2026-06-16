@@ -97,9 +97,15 @@
   <!-- TELA 3: RESULTADO -->
   <div id="tela-resultado" class="escondido">
     <h1 id="tituloResultado"></h1>
-    <p class="subtitle" id="descricaoResultado"></p>
-    <div id="listaFaixas" style="max-height: 200px; overflow-y: auto; margin-bottom: 20px;"></div>
-    <button onclick="criarPlaylist()">🎵 Criar essa playlist no meu Spotify</button>
+      <p class="subtitle" id="descricaoResultado"></p>
+    <div id="listaFaixas" style="max-height: 220px; overflow-y: auto; margin-bottom: 16px;"></div>
+      <p class="subtitle" style="font-size: 13px;">
+        Clique em qualquer faixa pra abrir no Spotify e ouvir ou adicionar à sua própria playlist.
+      </p>
+    <button onclick="criarPlaylist()">🎵 Criar playlist automaticamente (beta)</button>
+      <p class="subtitle" style="font-size: 11px; margin-top: 8px;">
+        *Função em fase de testes, disponível só para algumas contas autorizadas.
+      </p>
   </div>
 
 </div>
@@ -198,7 +204,12 @@ async function finalizarQuiz() {
   document.getElementById('tituloResultado').textContent = resultado.titulo;
   document.getElementById('descricaoResultado').textContent = resultado.descricao;
   document.getElementById('listaFaixas').innerHTML = resultado.faixas
-    .map(f => `<div class="faixa-item">🎵 ${f.nome} <span style="color:#666;"> — ${f.album || ''}</span></div>`)
+    .map(f => `
+      <div class="faixa-item">
+        <div>🎵 ${f.nome} <span style="color:#666;"> — ${f.album || ''}</span></div>
+        <a href="${f.spotifyUrl}" target="_blank" class="link-faixa">▶ Abrir no Spotify</a>
+      </div>
+    `)
     .join('');
 
   document.getElementById('tela-quiz').classList.add('escondido');
