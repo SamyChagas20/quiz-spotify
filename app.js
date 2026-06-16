@@ -118,7 +118,27 @@ app.get('/quiz/criar-playlist', (req, res) => {
   }
 
   const scopes = ['playlist-modify-public', 'playlist-modify-private', 'user-read-private', 'user-read-email'];
-  res.redirect(spotifyApiAuth.createAuthorizeURL(scopes, null, true));
+  const authUrl = spotifyApiAuth.createAuthorizeURL(scopes, null, true);
+
+  // Página de transição que avisa o usuário antes de redirecionar
+  res.send(`
+    <style>
+      body { background-color: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
+      .box { max-width: 400px; }
+      h2 { color: #1DB954; }
+      p { color: #b3b3b3; }
+      .spinner { border: 4px solid #333; border-top: 4px solid #1DB954; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+    <div class="box">
+      <h2>Conectando ao Spotify...</h2>
+      <div class="spinner"></div>
+      <p>Você será redirecionado em instantes para autorizar a criação da playlist.</p>
+    </div>
+    <script>
+      setTimeout(() => { window.location.href = '${authUrl}'; }, 3000);
+    </script>
+  `);
 });
 
 // 6. CALLBACK — onde o Spotify devolve o código de autorização
