@@ -2,6 +2,7 @@ services:
   - type: web
     name: quiz-spotify
     runtime: node
+    rootDir: gerador-playlist-spotify
     buildCommand: npm install
     startCommand: node app.js
     envVars:
