@@ -1,5 +1,3 @@
-
-console.log('[DEBUG] REDIRECT URI em uso:', process.env.SPOTIFY_REDIRECT_URI);
 const express = require('express');
 const session = require('express-session');
 const SpotifyWebApi = require('spotify-web-api-node');
@@ -15,10 +13,9 @@ app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: true,
-  cookie: { maxAge: 1000 * 60 * 30 } // 30 minutos
+  cookie: { maxAge: 1000 * 60 * 30 }
 }));
 
-// --- Instância "de App" (Client Credentials) — busca dados públicos, sem login de usuário ---
 const spotifyApiApp = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET
@@ -27,36 +24,29 @@ const spotifyApiApp = new SpotifyWebApi({
 let tokenAppExpiraEm = 0;
 
 async function garantirTokenApp() {
-  if (Date.now() < tokenAppExpiraEm) return; // ainda válido, evita chamada desnecessária
-
+  if (Date.now() < tokenAppExpiraEm) return;
   const data = await spotifyApiApp.clientCredentialsGrant();
   spotifyApiApp.setAccessToken(data.body['access_token']);
-  tokenAppExpiraEm = Date.now() + (data.body['expires_in'] - 60) * 1000; // renova 1min antes de expirar
+  tokenAppExpiraEm = Date.now() + (data.body['expires_in'] - 60) * 1000;
 }
 
-// --- Instância "de Auth" — só pra gerar a URL de login e trocar o código por tokens ---
-// Não guarda estado de usuário, então pode ser compartilhada com segurança.
 const spotifyApiAuth = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
   redirectUri: process.env.SPOTIFY_REDIRECT_URI
 });
 
-console.log("O Client ID lido foi:", process.env.SPOTIFY_CLIENT_ID);
+console.log('[Server] Client ID:', process.env.SPOTIFY_CLIENT_ID);
+console.log('[Server] Redirect URI:', process.env.SPOTIFY_REDIRECT_URI);
 
-// ============ ROTAS ============
-
-// 1. PÁGINA INICIAL → redireciona pro quiz
 app.get('/', (req, res) => {
   res.redirect('/quiz');
 });
 
-// 2. PÁGINA DO QUIZ
 app.get('/quiz', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'quiz.html'));
 });
 
-// 3. GERA AS PERGUNTAS DO QUIZ PRA UM ARTISTA
 app.post('/api/quiz/gerar', async (req, res) => {
   try {
     const { artista } = req.body;
@@ -68,10 +58,8 @@ app.post('/api/quiz/gerar', async (req, res) => {
     const dados = await buscarDadosArtista(spotifyApiApp, artista.trim());
     const perguntas = await gerarPerguntas(spotifyApiApp, dados);
 
-    // Guarda os dados completos (com gabarito) NA SESSÃO deste usuário
     req.session.quizAtual = { dados, perguntas };
 
-    // Remove o gabarito antes de enviar ao front
     const perguntasPublicas = perguntas.map(({ respostaCorreta, ...resto }) => resto);
 
     res.json({
@@ -85,7 +73,6 @@ app.post('/api/quiz/gerar', async (req, res) => {
   }
 });
 
-// 4. CALCULA O RESULTADO E O PERFIL DO FÃ
 app.post('/api/quiz/resultado', (req, res) => {
   try {
     const { respostas } = req.body;
@@ -96,8 +83,6 @@ app.post('/api/quiz/resultado', (req, res) => {
     }
 
     const resultado = gerarResultado(quizAtual.dados, quizAtual.perguntas, respostas || {});
-
-    // Guarda o resultado NA SESSÃO, pra usar depois do login
     req.session.resultadoQuiz = resultado;
 
     res.json({
@@ -112,16 +97,14 @@ app.post('/api/quiz/resultado', (req, res) => {
   }
 });
 
-// 5. INICIA O LOGIN PRA CRIAR A PLAYLIST DO RESULTADO
 app.get('/quiz/criar-playlist', (req, res) => {
   if (!req.session.resultadoQuiz) {
-    return res.status(400).send('<p>Nenhum resultado de quiz disponível. Refaça o quiz em <a href="/quiz">/quiz</a>.</p>');
+    return res.status(400).send('<p>Nenhum resultado disponivel. <a href="/quiz">Refaca o quiz</a>.</p>');
   }
 
   const scopes = ['playlist-modify-public', 'playlist-modify-private', 'user-read-private', 'user-read-email'];
   const authUrl = spotifyApiAuth.createAuthorizeURL(scopes, null, true);
 
-  // Página de transição que avisa o usuário antes de redirecionar
   res.send(`
     <style>
       body { background-color: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
@@ -134,7 +117,7 @@ app.get('/quiz/criar-playlist', (req, res) => {
     <div class="box">
       <h2>Conectando ao Spotify...</h2>
       <div class="spinner"></div>
-      <p>Você será redirecionado em instantes para autorizar a criação da playlist.</p>
+      <p>Voce sera redirecionado em instantes.</p>
     </div>
     <script>
       setTimeout(() => { window.location.href = '${authUrl}'; }, 3000);
@@ -142,28 +125,25 @@ app.get('/quiz/criar-playlist', (req, res) => {
   `);
 });
 
-// 6. CALLBACK — onde o Spotify devolve o código de autorização
 app.get('/callback', async (req, res) => {
   const { code } = req.query;
 
   if (!code) {
-    return res.status(400).send('<h1>Erro:</h1><p>Nenhum código recebido. Comece pela página inicial.</p>');
+    return res.status(400).send('<h1>Erro:</h1><p>Nenhum codigo recebido.</p>');
   }
 
   const resultadoQuiz = req.session.resultadoQuiz;
   if (!resultadoQuiz) {
-    return res.status(400).send('<p>Nenhum resultado de quiz disponível. Refaça o quiz em <a href="/quiz">/quiz</a>.</p>');
+    return res.status(400).send('<p>Sessao expirada. <a href="/quiz">Refaca o quiz</a>.</p>');
   }
 
   try {
-    // Troca o código pelos tokens (instância de auth compartilhada, sem efeito colateral)
     const dataToken = await spotifyApiAuth.authorizationCodeGrant(code);
     const accessToken = dataToken.body['access_token'];
     const refreshToken = dataToken.body['refresh_token'];
 
-    console.log(`[Tokens] Access Token gerado nesta sessão: ${accessToken.substring(0, 15)}...`);
+    console.log('[Tokens] Access Token gerado:', accessToken.substring(0, 15) + '...');
 
-    // Instância PRÓPRIA deste usuário/requisição
     const spotifyApiUsuario = new SpotifyWebApi({
       clientId: process.env.SPOTIFY_CLIENT_ID,
       clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
@@ -172,12 +152,10 @@ app.get('/callback', async (req, res) => {
     spotifyApiUsuario.setAccessToken(accessToken);
     spotifyApiUsuario.setRefreshToken(refreshToken);
 
-    // Busca dados do usuário logado
     const me = await spotifyApiUsuario.getMe();
     const usuarioId = me.body.id;
 
-    // Cria a playlist física no perfil do usuário
-    console.log(`[Spotify] Criando playlist para o usuário: ${usuarioId}`);
+    console.log('[Spotify] Criando playlist para:', usuarioId);
     const criacaoPlaylist = await spotifyApiUsuario.createPlaylist(usuarioId, {
       name: resultadoQuiz.nomePlaylist,
       description: resultadoQuiz.descricao,
@@ -186,27 +164,22 @@ app.get('/callback', async (req, res) => {
 
     const playlistId = criacaoPlaylist.body.id;
     const playlistUrl = criacaoPlaylist.body.external_urls.spotify;
-    console.log(`[Spotify] Playlist vazia criada! ID: ${playlistId}`);
+    console.log('[Spotify] Playlist criada! ID:', playlistId);
 
-    // Pausa estratégica pra sincronia dos servidores do Spotify
-    console.log('[Spotify] Aguardando sincronia de segurança...');
     await new Promise(resolve => setTimeout(resolve, 2500));
 
-    // Renova o token antes da injeção
-    console.log('[Spotify] Renovando token antes da injeção...');
     const refreshData = await spotifyApiUsuario.refreshAccessToken();
     const accessTokenAtual = refreshData.body['access_token'];
     spotifyApiUsuario.setAccessToken(accessTokenAtual);
 
-    // Injeção via /items, em lotes de 100
     const LOTE_MAXIMO = 100;
     const uris = resultadoQuiz.uris;
 
-    console.log(`[Spotify] Injetando ${uris.length} músicas na playlist...`);
+    console.log('[Spotify] Injetando', uris.length, 'musicas...');
 
     for (let i = 0; i < uris.length; i += LOTE_MAXIMO) {
       const lote = uris.slice(i, i + LOTE_MAXIMO);
-      console.log(`[Spotify] Injetando lote ${Math.floor(i / LOTE_MAXIMO) + 1}: ${lote.length} faixas (via /items)...`);
+      console.log('[Spotify] Lote', Math.floor(i / LOTE_MAXIMO) + 1 + ':', lote.length, 'faixas...');
 
       const respItems = await fetch(`https://api.spotify.com/v1/playlists/${playlistId}/items`, {
         method: 'POST',
@@ -222,20 +195,16 @@ app.get('/callback', async (req, res) => {
         throw new Error(`Erro ao adicionar faixas (status ${respItems.status}): ${JSON.stringify(erroBody)}`);
       }
 
-      console.log(`[Spotify] Lote ${Math.floor(i / LOTE_MAXIMO) + 1} adicionado com sucesso!`);
-
       if (i + LOTE_MAXIMO < uris.length) {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
-    console.log(`[Spotify] Músicas adicionadas com sucesso!`);
+    console.log('[Spotify] Musicas adicionadas com sucesso!');
 
-    // Limpa os dados do quiz dessa sessão (já foram usados)
     delete req.session.quizAtual;
     delete req.session.resultadoQuiz;
 
-    // Tela visual de sucesso
     res.send(`
       <style>
         body { background-color: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -246,37 +215,36 @@ app.get('/callback', async (req, res) => {
       </style>
       <div class="success-box">
         <h1>Perfil Pronto!</h1>
-        <p>A playlist <strong>"${resultadoQuiz.nomePlaylist}"</strong> foi gerada e populada no seu Spotify.</p>
+        <p>A playlist <strong>"${resultadoQuiz.nomePlaylist}"</strong> foi criada no seu Spotify.</p>
         <a class="btn" href="${playlistUrl}" target="_blank">Abrir no Spotify</a>
       </div>
     `);
 
   } catch (error) {
-      console.error('Erro detalhado no callback:', error);
+    console.error('Erro no callback:', error);
+    const status = error.statusCode || error.body?.error?.status;
 
-      const status = error.statusCode || error.body?.error?.status;
+    if (status === 403) {
+      return res.status(403).send(`
+        <style>
+          body { background-color: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
+          .box { max-width: 420px; }
+          h1 { color: #ff5c5c; }
+          a { color: #1DB954; }
+        </style>
+        <div class="box">
+          <h1>Funcao em testes</h1>
+          <p>A criacao automatica de playlist esta disponivel apenas para contas autorizadas.</p>
+          <p><a href="/quiz">Voltar ao quiz</a></p>
+        </div>
+      `);
+    }
 
-      if (status === 403) {
-        return res.status(403).send(`
-          <style>
-            body { background-color: #121212; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; padding: 20px; }
-            .box { max-width: 420px; }
-            h1 { color: #ff5c5c; }
-            a { color: #1DB954; }
-          </style>
-          <div class="box">
-            <h1>Função em testes</h1>
-            <p>A criação automática de playlist está disponível apenas para contas autorizadas durante esta fase de testes.</p>
-            <p>Mas não se preocupe! Você ainda pode <a href="/quiz">voltar ao quiz</a> e usar os links de cada música pra adicionar manualmente à sua playlist no Spotify.</p>
-          </div>
-        `);
-      }
-
-      res.status(500).send('<h1>Erro no Processamento</h1><p>Ocorreu um problema ao gerar ou popular a playlist. Verifique o console do servidor para detalhes.</p>');
+    res.status(500).send('<h1>Erro no Processamento</h1><p>Tente novamente.</p>');
   }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
