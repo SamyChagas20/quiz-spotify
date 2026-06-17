@@ -201,7 +201,7 @@ async function gerarPerguntas(spotifyApiApp, dados) {
   );
 
   if (hits.length >= 1 && albunsEstudio.length >= 3) {
-    const faixaAlvo = hitsDeAlbuns[0];
+    const faixaAlvo = embaralhar(hitsDeAlbuns)[0];
     const albumCorreto = faixaAlvo.album.name;
     const outrosAlbuns = albunsEstudio.map(a => a.name).filter(n => n !== albumCorreto);
     const distratores = embaralhar([...new Set(outrosAlbuns)]).slice(0, 3);
