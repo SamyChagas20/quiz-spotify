@@ -93,7 +93,11 @@ async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
 
   // Busca faixas de até 6 álbuns de estúdio aleatórios pra montar o pool de "raridades"
   const idsHits = new Set(hits.map(t => t.id));
-  const albunsParaFaixas = embaralhar(albunsEstudio).slice(0, 6);
+  const terco = Math.ceil(albunsEstudio.length / 3);
+  const antigos = embaralhar(albunsEstudio.slice(0, terco)).slice(0, 2);
+  const meio = embaralhar(albunsEstudio.slice(terco, terco * 2)).slice(0, 2);
+  const recentes = embaralhar(albunsEstudio.slice(terco * 2)).slice(0, 2);
+  const albunsParaFaixas = [...antigos, ...meio, ...recentes];
   let deepCuts = [];
 
   for (const album of albunsParaFaixas) {
@@ -110,7 +114,11 @@ async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
   }
 
   // Remove duplicatas
-  deepCuts = deepCuts.filter((t, i, self) => i === self.findIndex(x => x.id === t.id));
+  deepCuts = deepCuts.filter((t, i, self) => 
+      i === self.findIndex(x => 
+      x.id === t.id || x.name.toLowerCase().trim() === t.name.toLowerCase().trim()
+    )
+  );
 
   // Ano "mediano" da discografia, usado pra dividir clássico vs recente
   const anos = albunsEstudio
