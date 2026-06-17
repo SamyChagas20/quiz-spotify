@@ -5,6 +5,7 @@ const path = require('path');
 const { buscarDadosArtista, gerarPerguntas, gerarResultado } = require('./quizGerador');
 
 const app = express();
+app.set('trust proxy', 1);
 
 app.use(express.static('public'));
 app.use(express.json());
