@@ -56,13 +56,21 @@ app.get('/quiz', (req, res) => {
 
 app.post('/api/quiz/gerar', async (req, res) => {
   try {
-    const { artista } = req.body;
+    let { artista } = req.body;
     if (!artista || !artista.trim()) {
       return res.status(400).json({ erro: 'Informe o nome de um artista.' });
     }
 
+    // SANITIZAÇÃO PARA iOS: Remove aspas/hifens inteligentes e caracteres de controle ocultos
+    artista = artista
+      .trim()
+      .replace(/[\u2018\u2019]/g, "'") // Corrige apóstrofos inteligentes
+      .replace(/[\u201C\u201D]/g, '"') // Corrige aspas inteligentes
+      .replace(/[\u2013\u2014]/g, "-") // Corrige hifens/travessões longos do iOS
+      .replace(/[\u200B-\u200D\uFEFF]/g, ""); // Remove caracteres invisíveis de largura zero
+
     await garantirTokenApp();
-    const dados = await buscarDadosArtista(spotifyApiApp, artista.trim());
+    const dados = await buscarDadosArtista(spotifyApiApp, artista);
     const perguntas = await gerarPerguntas(spotifyApiApp, dados);
 
     req.session.quizAtual = { dados, perguntas };
@@ -74,8 +82,17 @@ app.post('/api/quiz/gerar', async (req, res) => {
       perguntas: perguntasPublicas
     });
   } catch (erro) {
-    console.error('[Quiz] Erro ao gerar quiz:', erro.message);
-    console.error('[Quiz] Detalhes:', JSON.stringify(erro.body || erro, null, 2));
+    // CORREÇÃO DOS LOGS: Captura propriedades ocultas que o JSON.stringify() ignora por padrão
+    console.error('[Quiz] Erro ao gerar quiz:', erro.message || erro);
+    
+    const detalhesErro = {
+      message: erro.message,
+      statusCode: erro.statusCode,
+      body: erro.body,
+      stack: erro.stack
+    };
+    console.error('[Quiz] Detalhes do Erro:', JSON.stringify(detalhesErro, null, 2));
+    
     res.status(500).json({ erro: erro.message || 'Erro ao gerar o quiz.' });
   }
 });
