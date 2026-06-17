@@ -36,8 +36,13 @@ async function buscarTodosAlbuns(spotifyApiApp, artistaId, limitePorPagina = 10,
   return albuns.slice(0, maxAlbuns);
 }
 
+// Adicione esta função auxiliar logo no topo do arquivo quizGerador.js, fora de tudo
+const esperar = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
   console.log('[Quiz] Buscando artista:', nomeArtista);
+  
+  // 1. Busca o Artista
   const buscaArtista = await spotifyApiApp.searchArtists(nomeArtista, { limit: 5 });
   const resultados = buscaArtista.body.artists.items;
   
@@ -53,6 +58,9 @@ async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
   }
   console.log('[Quiz] Artista encontrado:', artista.name, artista.id);
 
+  await esperar(200); // Pausa estratégica anti-429
+
+  // 2. Busca as Faixas Populares
   console.log('[Quiz] Buscando faixas populares via search...');
   const buscaFaixas = await spotifyApiApp.searchTracks(`artist:${artista.name}`, { limit: 10 });
   
@@ -66,10 +74,14 @@ async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
   
   console.log('[Quiz] Top tracks (via search) OK:', hits.length);
 
-  console.log('[Quiz] Buscando álbuns...');
-  // Reduzimos o maxAlbuns de 30 para 15 para evitar páginas extras desnecessárias no While
-  const todosAlbuns = await buscarTodosAlbuns(spotifyApiApp, artista.id, 10, 15);
+  await esperar(200); // Outra pausa pros servidores do Spotify respirarem
 
+  // 3. Busca os Álbuns (CORRIGIDO: Removida a chamada duplicada que causava o 429)
+  console.log('[Quiz] Buscando álbuns...');
+  const todosAlbuns = await buscarTodosAlbuns(spotifyApiApp, artista.id, 10, 15);
+  console.log('[Quiz] Álbuns recuperados:', todosAlbuns.length);
+
+  // Remove duplicatas de álbuns (deluxe, remasters etc)
   const albunsUnicos = [];
   const nomesVistos = new Set();
   for (const album of todosAlbuns) {
@@ -82,29 +94,33 @@ async function buscarDadosArtista(spotifyApiApp, nomeArtista) {
 
   const albunsEstudio = albunsUnicos.filter(a => a.album_type === 'album');
 
-  // Reduzimos de 6 para 3 álbuns aleatórios. 3 álbuns já dão um pool excelente (~30 músicas) para extrair as raridades!
+  // 4. Busca faixas de apenas 3 álbuns para o pool de raridades (reduz requisições pela metade)
   const idsHits = new Set(hits.map(t => t.id));
-  const albunsParaFaixas =  [...albunsEstudio].sort(() => Math.random() - 0.5).slice(0, 3); 
+  const albunsParaFaixas = [...albunsEstudio].sort(() => Math.random() - 0.5).slice(0, 3);
   let deepCuts = [];
 
   for (const album of albunsParaFaixas) {
-    // Uma leve pausa de 100ms entre requisições de álbuns para acalmar o Rate Limit
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    const faixasResp = await spotifyApiApp.getAlbumTracks(album.id, { limit: 30 });
-    const faixas = faixasResp.body.items
-      .filter(t => !idsHits.has(t.id))
-      .filter(t => t.artists.some(a => a.id === artista.id))
-      .map(t => ({
-        ...t,
-        albumNome: album.name,
-        albumAno: parseInt(album.release_date.substring(0, 4)) || null
-      }));
-    deepCuts.push(...faixas);
+    try {
+      await esperar(250); // Pausa crucial dentro do loop
+      const faixasResp = await spotifyApiApp.getAlbumTracks(album.id, { limit: 30 });
+      const faixas = faixasResp.body.items
+        .filter(t => !idsHits.has(t.id))
+        .filter(t => t.artists.some(a => a.id === artista.id))
+        .map(t => ({
+          ...t,
+          albumNome: album.name,
+          albumAno: parseInt(album.release_date.substring(0, 4)) || null
+        }));
+      deepCuts.push(...faixas);
+    } catch (e) {
+      console.warn(`[Aviso] Falha ao buscar faixas do álbum ${album.name}, pulando para evitar travamento.`);
+    }
   }
 
+  // Remove duplicatas de faixas
   deepCuts = deepCuts.filter((t, i, self) => i === self.findIndex(x => x.id === t.id));
 
+  // Ano mediano
   const anos = albunsEstudio
     .map(a => parseInt(a.release_date.substring(0, 4)))
     .sort((a, b) => a - b);
