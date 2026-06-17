@@ -5,23 +5,15 @@ const path = require('path');
 const { buscarDadosArtista, gerarPerguntas, gerarResultado } = require('./quizGerador');
 
 const app = express();
-app.set('trust proxy', 1);
 
 app.use(express.static('public'));
 app.use(express.json());
-
-const isProduction = process.env.NODE_ENV === 'production' || true; // ou verifique sua var de ambiente
 
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: true,
-  cookie: { 
-    maxAge: 1000 * 60 * 30,
-    secure: isProduction, // Garante que o cookie só viaja por HTTPS
-    sameSite: isProduction ? 'none' : 'lax' // Permite o tráfego de cookies em requests mobile
-  },
-  proxy: true // Necessário para o Express confiar no proxy do Railway (que gerencia o SSL)
+  cookie: { maxAge: 1000 * 60 * 30 }
 }));
 
 const spotifyApiApp = new SpotifyWebApi({
@@ -57,21 +49,13 @@ app.get('/quiz', (req, res) => {
 
 app.post('/api/quiz/gerar', async (req, res) => {
   try {
-    let { artista } = req.body;
+    const { artista } = req.body;
     if (!artista || !artista.trim()) {
       return res.status(400).json({ erro: 'Informe o nome de um artista.' });
     }
 
-    // SANITIZAÇÃO PARA iOS: Remove aspas/hifens inteligentes e caracteres de controle ocultos
-    artista = artista
-      .trim()
-      .replace(/[\u2018\u2019]/g, "'") // Corrige apóstrofos inteligentes
-      .replace(/[\u201C\u201D]/g, '"') // Corrige aspas inteligentes
-      .replace(/[\u2013\u2014]/g, "-") // Corrige hifens/travessões longos do iOS
-      .replace(/[\u200B-\u200D\uFEFF]/g, ""); // Remove caracteres invisíveis de largura zero
-
     await garantirTokenApp();
-    const dados = await buscarDadosArtista(spotifyApiApp, artista);
+    const dados = await buscarDadosArtista(spotifyApiApp, artista.trim());
     const perguntas = await gerarPerguntas(spotifyApiApp, dados);
 
     req.session.quizAtual = { dados, perguntas };
@@ -83,17 +67,8 @@ app.post('/api/quiz/gerar', async (req, res) => {
       perguntas: perguntasPublicas
     });
   } catch (erro) {
-    // CORREÇÃO DOS LOGS: Captura propriedades ocultas que o JSON.stringify() ignora por padrão
-    console.error('[Quiz] Erro ao gerar quiz:', erro.message || erro);
-    
-    const detalhesErro = {
-      message: erro.message,
-      statusCode: erro.statusCode,
-      body: erro.body,
-      stack: erro.stack
-    };
-    console.error('[Quiz] Detalhes do Erro:', JSON.stringify(detalhesErro, null, 2));
-    
+    console.error('[Quiz] Erro ao gerar quiz:', erro.message);
+    console.error('[Quiz] Detalhes:', JSON.stringify(erro.body || erro, null, 2));
     res.status(500).json({ erro: erro.message || 'Erro ao gerar o quiz.' });
   }
 });
