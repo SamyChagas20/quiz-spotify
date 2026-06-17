@@ -9,11 +9,18 @@ const app = express();
 app.use(express.static('public'));
 app.use(express.json());
 
+const isProduction = process.env.NODE_ENV === 'production' || true; // ou verifique sua var de ambiente
+
 app.use(session({
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: true,
-  cookie: { maxAge: 1000 * 60 * 30 }
+  cookie: { 
+    maxAge: 1000 * 60 * 30,
+    secure: isProduction, // Garante que o cookie só viaja por HTTPS
+    sameSite: isProduction ? 'none' : 'lax' // Permite o tráfego de cookies em requests mobile
+  },
+  proxy: true // Necessário para o Express confiar no proxy do Railway (que gerencia o SSL)
 }));
 
 const spotifyApiApp = new SpotifyWebApi({

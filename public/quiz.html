@@ -136,7 +136,12 @@ async function iniciarQuiz() {
     const dados = await resp.json();
 
     if (!resp.ok) {
-      erroEl.textContent = dados.erro || 'Erro ao gerar quiz.';
+      // Se 'erro' for um objeto, transforma em string para você conseguir ler no celular
+      if (typeof dados.erro === 'object') {
+        erroEl.textContent = JSON.stringify(dados.erro);
+      } else {
+        erroEl.textContent = dados.erro || 'Erro ao gerar quiz.';
+      }
       erroEl.classList.remove('escondido');
       return;
     }
